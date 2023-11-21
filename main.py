@@ -1,46 +1,34 @@
-from Bio.PDB import PDBParser
-from Bio.PDB.NeighborSearch import NeighborSearch
-import matplotlib.pyplot as plt
+import Bio.PDB
+import numpy as np
+import pylab
 
-prot_id="2BGL"
-def calculate_contact_map(pdb_id, threshold=8.0):
-    pdb_file = f"{pdb_id}.pdb"  # Możesz pobrać PDB z RCSB PDB
+pdb_code = "2HHB"
+pdb_filename = "2hhb.pdb"  # Correct filename for the PDB code "1BOM"
 
-    parser = PDBParser(QUIET=True)
-    structure = parser.get_structure(pdb_id, pdb_file)
+def calculate_distance(a, b):
+    if 'CA' in a and 'CA' in b:
+        difference = a['CA'].coord - b['CA'].coord
+        if np.sqrt(np.sum(difference * difference)) <= 8:
+            return np.sqrt(np.sum(difference * difference))
+        else:
+            return None
+    else:
+        # Handle the case where 'CA' atom is missing in either residue
+        return None  # Or any default value or error handling suitable for your analysis
 
-    ca_atoms = []
-    for model in structure:
-        for chain in model:
-            for residue in chain:
-                if residue.get_id()[0] == ' ' and 'CA' in residue:
-                    ca_atoms.append(residue['CA'])
+def calculate_distance_matrix(chain):
+    x = np.zeros((len(chain), len(chain)), float)
+    for row, residue_row in enumerate(chain):
+        for col, residue_col in enumerate(chain):
+            x[row, col] = calculate_distance(residue_row, residue_col)
+    return x
 
-    contact_map = {atom: [] for atom in ca_atoms}
-    ns = NeighborSearch(ca_atoms)
+structure = Bio.PDB.PDBParser().get_structure("chains", pdb_filename)
+model = structure[0]
+chain_A = model["A"]
+distance_matrix = calculate_distance_matrix(chain_A)
 
-    for atom in ca_atoms:
-        neighbors = ns.search(atom.get_coord(), radius=threshold, level='R')
-        for neighbor in neighbors:
-            if neighbor != atom:
-                contact_map[atom].append(neighbor)
-
-    return contact_map
-
-# Użycie funkcji do obliczenia mapy kontaktów
-contact_map_prot = calculate_contact_map(prot_id, threshold=8.0)
-
-def plot_contact_map_scatter(contact_map):
-    contact_counts = [len(contacts) for contacts in contact_map.values()]
-    x_values = range(len(contact_counts))
-
-    plt.figure(figsize=(8, 6))
-    plt.scatter(x_values, contact_counts, color='blue', alpha=0.7)
-    plt.xlabel('Indeks atomu CA')
-    plt.ylabel('Liczba kontaktów')
-    plt.title('Scatter plot mapy kontaktów dla białka')
-
-    plt.show()
-
-# Użycie funkcji do wygenerowania scatter plotu na podstawie mapy kontaktów
-plot_contact_map_scatter(contact_map_prot)
+print(distance_matrix)
+pylab.matshow(np.transpose(distance_matrix))
+pylab.colorbar()
+pylab.show()
